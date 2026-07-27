@@ -1,0 +1,6 @@
+interface:
+  display_name: "Everything Search"
+  short_description: "Find Windows files instantly"
+  default_prompt: "Use $everything-search to find files on this Windows PC instantly."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,36 @@
+{
+  "name": "everything-search",
+  "version": "0.1.0",
+  "description": "Search local Windows files instantly with the bundled voidtools ES command-line client.",
+  "author": {
+    "name": "c0sogi",
+    "url": "https://github.com/c0sogi"
+  },
+  "homepage": "https://github.com/c0sogi/everything-search-skill#readme",
+  "repository": "https://github.com/c0sogi/everything-search-skill",
+  "license": "MIT",
+  "keywords": [
+    "everything",
+    "voidtools",
+    "windows",
+    "file-search",
+    "agent-skill"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Everything Search",
+    "shortDescription": "Find local Windows files instantly.",
+    "longDescription": "Let Codex inspect the local Everything setup and search file names, paths, extensions, sizes, and dates through a bundled, verified copy of the voidtools ES command-line client. No MCP server is required.",
+    "developerName": "c0sogi",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://github.com/c0sogi/everything-search-skill",
+    "defaultPrompt": [
+      "Find all AGENTS.md files on this PC.",
+      "Find Unity files modified today under C:\\Projects.",
+      "Check whether Everything search is ready."
+    ]
+  }
+}

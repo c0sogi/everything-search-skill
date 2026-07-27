@@ -1,0 +1,21 @@
+{
+  "name": "voidtools ES",
+  "version": "1.1.0.37",
+  "license": "MIT",
+  "upstream_repository": "https://github.com/voidtools/ES",
+  "upstream_release": "https://github.com/voidtools/ES/releases/tag/1.1.0.37",
+  "files": {
+    "win-x64/es.exe": {
+      "source_archive": "https://github.com/voidtools/ES/releases/download/1.1.0.37/ES-1.1.0.37.x64.zip",
+      "source_archive_sha256": "7a57670d9152068d05876c58858c82fe6d3915a9df2c819f4de8801e2929d3a7",
+      "sha256": "3be7185707e8023cd9295dbcb7a3fa4092a3d8f52b7fa92a0b84243ab40d12f3",
+      "authenticode_signer": "voidtools PTY LTD"
+    },
+    "win-arm64/es.exe": {
+      "source_archive": "https://github.com/voidtools/ES/releases/download/1.1.0.37/ES-1.1.0.37.ARM64.zip",
+      "source_archive_sha256": "774dba860c3cecab95de43c95266754adfc8e92c7c59d6564a3b5dbaeb20dca8",
+      "sha256": "ed1138873d0a78bef08b342d19056def756fde1969182f48baf6be24cd954825",
+      "authenticode_signer": "voidtools PTY LTD"
+    }
+  }
+}
