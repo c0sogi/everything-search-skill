@@ -1,0 +1,39 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate package with Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\Test-Package.ps1
+
+      - name: Validate query construction with Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\Test-QueryConstruction.ps1
+
+      - name: Validate IPC recovery with Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\Test-IpcRecovery.ps1
+
+      - name: Validate package with PowerShell 7
+        shell: pwsh
+        run: .\tests\Test-Package.ps1
+
+      - name: Validate query construction with PowerShell 7
+        shell: pwsh
+        run: .\tests\Test-QueryConstruction.ps1
+
+      - name: Validate IPC recovery with PowerShell 7
+        shell: pwsh
+        run: .\tests\Test-IpcRecovery.ps1

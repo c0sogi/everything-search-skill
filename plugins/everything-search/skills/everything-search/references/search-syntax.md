@@ -1,18 +1,28 @@
 # Everything search syntax
 
-Use these forms inside `Search-Everything.ps1 -Query`. Prefer the script's
-structured parameters such as `-Path`, `-FilesOnly`, and `-Sort` when they cover
-the request.
+Prefer the structured parameters of `Search-Everything.ps1` whenever they cover
+the request:
+
+- `-Path`
+- `-Extensions`
+- `-ItemType Any|File|Folder`
+- `-ModifiedAfter` and `-ModifiedBefore`
+- `-MinSizeBytes` and `-MaxSizeBytes`
+- `-Sort`
+- `-Instance`
+
+Use raw Everything syntax inside `-Query` only for expressions that cannot be
+represented cleanly with those parameters.
 
 ## Operators
 
 | Form | Meaning | Example |
 | --- | --- | --- |
-| space | AND | `report ext:pdf` |
-| `|` | OR | `ext:docx|ext:pdf` |
+| space | AND | `report final` |
+| `|` | OR | `invoice|receipt` |
 | `!` | NOT | `report !draft` |
 | `"..."` | exact phrase | `"meeting notes"` |
-| `<...>` | group | `<report invoice> ext:pdf` |
+| `<...>` | group | `<report invoice> final` |
 
 ## Useful functions
 
@@ -28,24 +38,32 @@ the request.
 | `dupe:` | Duplicate property value | `dupe:size;name` |
 | `regex:` | Regular expression | `regex:^AGENTS\.md$` |
 
-For a directory boundary, prefer the wrapper's `-Path "C:\Projects"` parameter
-instead of embedding a path as a raw query term:
+For common filters, prefer this:
 
 ```powershell
 & "$skill\scripts\Search-Everything.ps1" `
-  -Query "ext:cs;shader dm:thisweek" `
+  -Query "report" `
   -Path "C:\Projects" `
-  -FilesOnly `
-  -Sort "date-modified-descending"
+  -Extensions pdf,docx `
+  -ItemType File `
+  -ModifiedAfter "2026-08-01"
 ```
+
+instead of embedding every constraint into a single raw query string. The
+wrapper keeps independent search terms as independent native arguments, which
+also avoids Windows PowerShell 5.1 argument-construction pitfalls.
 
 Do not put ES command-line switches such as `-n`, `-sort`, `/ad`, or `/a-d` in
 `-Query`. The wrapper rejects terms beginning with `-` or `/`; use its
 parameters instead.
 
-Everything 1.4 searches indexed names and metadata. For text inside files,
-first use Everything to narrow the directory or file set when useful, then use
-`rg`:
+`-Regex` applies to the complete `Query` value and cannot be combined with the
+structured extension, date, or size filters. Put the complete expression in
+`Query`, or use normal Everything syntax without `-Regex`.
+
+Everything searches indexed names and metadata. For text inside files, first
+use Everything to narrow the directory or candidate file set when useful, then
+use `rg`:
 
 ```powershell
 rg --line-number --hidden --glob "!Library/**" "needle" "C:\Projects"

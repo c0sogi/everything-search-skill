@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$Instance
+)
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
@@ -19,7 +21,7 @@ else {
     [pscustomobject]@{ ExitCode = -1; Text = $null }
 }
 $ipcResult = if ($esTrust.trusted) {
-    Invoke-EverythingEs -EsPath $esPath -Arguments @("-get-everything-version")
+    Invoke-EverythingIpcProbe -EsPath $esPath -Instance $Instance
 }
 else {
     [pscustomobject]@{ ExitCode = -1; Text = $null }
@@ -43,6 +45,12 @@ $processPaths = @(
 $everythingInstalled = ($everythingExecutables.Count -gt 0) -or ($processes.Count -gt 0)
 $ipcReady = ($ipcResult.ExitCode -eq 0) -and -not [string]::IsNullOrWhiteSpace($ipcResult.Text)
 $ready = $esTrust.trusted -and $ipcReady
+$diagnosis = if ($esTrust.trusted -and -not $ipcReady) {
+    Get-EverythingIpcDiagnosis -ExitCode $ipcResult.ExitCode -Instance $Instance
+}
+else {
+    $null
+}
 
 $recommendedAction = if (-not $esTrust.trusted) {
     "reinstall-skill"
@@ -50,15 +58,22 @@ $recommendedAction = if (-not $esTrust.trusted) {
 elseif ($ready) {
     "none"
 }
-elseif ($everythingInstalled) {
+elseif ($diagnosis.code -eq "everything_not_installed") {
+    "install-everything"
+}
+elseif ($diagnosis.code -eq "ipc_elevation_mismatch") {
+    "align-process-elevation"
+}
+elseif ($diagnosis.start_recommended) {
     "start-everything"
 }
 else {
-    "install-everything"
+    "inspect-everything-ipc"
 }
 
 [pscustomobject]@{
     ready = $ready
+    instance = if ([string]::IsNullOrWhiteSpace($Instance)) { $null } else { $Instance }
     os = [Environment]::OSVersion.VersionString
     platform = $platform
     es = [pscustomobject]@{
@@ -82,7 +97,8 @@ else {
         executable_paths = @($everythingExecutables)
         ipc_ready = $ipcReady
         ipc_exit_code = $ipcResult.ExitCode
+        ipc_diagnosis = $diagnosis
         version = if ($ipcReady) { $ipcResult.Text } else { $null }
     }
     recommended_action = $recommendedAction
-} | ConvertTo-Json -Depth 6
+} | ConvertTo-Json -Depth 7

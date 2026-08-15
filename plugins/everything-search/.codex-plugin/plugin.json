@@ -1,7 +1,7 @@
 {
   "name": "everything-search",
-  "version": "0.1.0",
-  "description": "Search local Windows files instantly with the bundled voidtools ES command-line client.",
+  "version": "0.2.0",
+  "description": "Search local Windows files with bounded results, structured filters, and resilient Everything IPC recovery.",
   "author": {
     "name": "c0sogi",
     "url": "https://github.com/c0sogi"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Everything Search",
-    "shortDescription": "Find local Windows files instantly.",
-    "longDescription": "Let Codex inspect the local Everything setup and search file names, paths, extensions, sizes, and dates through a bundled, verified copy of the voidtools ES command-line client. No MCP server is required.",
+    "shortDescription": "Find local Windows files quickly with bounded results.",
+    "longDescription": "Let Codex search the local Everything index through a bundled, verified voidtools ES client, with structured filters, compact JSON, named-instance support, and bounded IPC recovery. No MCP server is required.",
     "developerName": "c0sogi",
     "category": "Productivity",
     "capabilities": [

@@ -27,15 +27,26 @@ function Assert-Condition {
 
 $requiredPaths = @(
     ".agents\plugins\marketplace.json",
+    ".github\workflows\test.yml",
     "plugins\everything-search\.codex-plugin\plugin.json",
     "plugins\everything-search\skills\everything-search\SKILL.md",
     "plugins\everything-search\skills\everything-search\agents\openai.yaml",
     "plugins\everything-search\skills\everything-search\references\search-syntax.md",
+    "plugins\everything-search\skills\everything-search\scripts\Everything.Common.ps1",
+    "plugins\everything-search\skills\everything-search\scripts\Get-EverythingStatus.ps1",
+    "plugins\everything-search\skills\everything-search\scripts\Initialize-Everything.ps1",
+    "plugins\everything-search\skills\everything-search\scripts\Search-Everything.ps1",
+    "plugins\everything-search\skills\everything-search\scripts\Get-FileIdentity.ps1",
     "plugins\everything-search\skills\everything-search\assets\es\manifest.json",
     "plugins\everything-search\skills\everything-search\assets\es\LICENSE-voidtools-ES.txt",
     "plugins\everything-search\skills\everything-search\assets\es\win-x64\es.exe",
     "plugins\everything-search\skills\everything-search\assets\es\win-arm64\es.exe",
+    "tests\Test-Package.ps1",
+    "tests\Test-QueryConstruction.ps1",
+    "tests\Test-IpcRecovery.ps1",
+    "tests\Test-Integration.ps1",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
 )
@@ -56,12 +67,20 @@ Assert-Condition ($marketplace.name -eq "everything-search-skill") "Unexpected m
 Assert-Condition ($marketplace.plugins.Count -eq 1) "Marketplace must contain exactly one plugin."
 Assert-Condition ($marketplace.plugins[0].name -eq "everything-search") "Marketplace plugin name does not match."
 Assert-Condition ($plugin.name -eq "everything-search") "Unexpected plugin name."
-Assert-Condition ($plugin.version -eq "0.1.0") "Unexpected plugin version."
+Assert-Condition ($plugin.version -eq "0.2.0") "Unexpected plugin version."
 Assert-Condition ($assetManifest.version -eq "1.1.0.37") "Unexpected bundled ES version."
 
 $skillText = Get-Content -LiteralPath (Join-Path $skillRoot "SKILL.md") -Raw
 Assert-Condition ($skillText -match "(?m)^name:\s*everything-search\s*$") "SKILL.md name is missing or incorrect."
 Assert-Condition ($skillText -match "(?m)^description:\s*\S") "SKILL.md description is missing."
+Assert-Condition ($skillText -match "MaxResults.*20") "SKILL.md does not describe the bounded default result limit."
+
+$searchText = Get-Content -LiteralPath (Join-Path $skillRoot "scripts\Search-Everything.ps1") -Raw
+Assert-Condition ($searchText -match '\[int\]\$MaxResults\s*=\s*20') "Search default MaxResults is not 20."
+Assert-Condition ($searchText -match '\[string\]\$OutputMode\s*=\s*"Compact"') "Search default OutputMode is not Compact."
+Assert-Condition ($searchText -match 'Ensure-EverythingIpcReady') "Search does not own its readiness workflow."
+Assert-Condition ($searchText -match '"-size-format"') "Metadata output does not force byte-sized numeric values."
+Assert-Condition ($searchText -match '"-no-digit-grouping"') "Metadata output does not disable numeric digit grouping."
 
 $textFiles = @(
     Get-ChildItem -LiteralPath $pluginRoot -Recurse -File |
@@ -70,8 +89,11 @@ $textFiles = @(
 $todoHits = @($textFiles | Select-String -Pattern "[TODO:" -SimpleMatch)
 Assert-Condition ($todoHits.Count -eq 0) "Unresolved scaffold TODO found in plugin files."
 
-$scriptFiles = @(Get-ChildItem -LiteralPath (Join-Path $skillRoot "scripts") -Filter "*.ps1" -File)
-Assert-Condition ($scriptFiles.Count -ge 4) "Expected skill PowerShell scripts were not found."
+$scriptFiles = @(
+    Get-ChildItem -LiteralPath (Join-Path $skillRoot "scripts") -Filter "*.ps1" -File
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot "tests") -Filter "*.ps1" -File
+)
+Assert-Condition ($scriptFiles.Count -ge 9) "Expected PowerShell scripts were not found."
 foreach ($scriptFile in $scriptFiles) {
     $tokens = $null
     $parseErrors = $null

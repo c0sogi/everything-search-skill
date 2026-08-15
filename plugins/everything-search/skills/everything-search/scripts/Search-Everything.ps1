@@ -1,13 +1,21 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [string]$Query,
+    [AllowEmptyString()]
+    [string]$Query = "",
 
     [ValidateRange(1, 200)]
-    [int]$MaxResults = 50,
+    [int]$MaxResults = 20,
 
     [string]$Path,
+    [string[]]$Extensions,
+
+    [ValidateSet("Any", "File", "Folder")]
+    [string]$ItemType = "Any",
+
+    [datetime]$ModifiedAfter,
+    [datetime]$ModifiedBefore,
+    [long]$MinSizeBytes,
+    [long]$MaxSizeBytes,
 
     [ValidateSet(
         "name-ascending",
@@ -25,13 +33,19 @@ param(
     )]
     [string]$Sort = "name-ascending",
 
+    [ValidateSet("Compact", "Metadata", "Full")]
+    [string]$OutputMode = "Compact",
+
     [switch]$FilesOnly,
     [switch]$FoldersOnly,
     [switch]$MatchPath,
     [switch]$MatchCase,
     [switch]$MatchWholeWord,
     [switch]$Regex,
-    [string]$Instance
+    [string]$Instance,
+
+    [ValidateRange(500, 30000)]
+    [int]$TimeoutMilliseconds = 5000
 )
 
 Set-StrictMode -Version 2.0
@@ -43,37 +57,99 @@ if ($FilesOnly -and $FoldersOnly) {
     throw "FilesOnly and FoldersOnly cannot be used together."
 }
 
+$effectiveItemType = $ItemType
+if ($FilesOnly) {
+    if ($ItemType -eq "Folder") {
+        throw "FilesOnly conflicts with ItemType Folder."
+    }
+    $effectiveItemType = "File"
+}
+if ($FoldersOnly) {
+    if ($ItemType -eq "File") {
+        throw "FoldersOnly conflicts with ItemType File."
+    }
+    $effectiveItemType = "Folder"
+}
+
+$structuredFilterNames = @("Extensions", "ModifiedAfter", "ModifiedBefore", "MinSizeBytes", "MaxSizeBytes")
+if ($Regex) {
+    if ([string]::IsNullOrWhiteSpace($Query)) {
+        throw "Query is required when Regex is enabled."
+    }
+    Assert-EverythingQueryTokenSafe -Token $Query
+    foreach ($filterName in $structuredFilterNames) {
+        if ($PSBoundParameters.ContainsKey($filterName)) {
+            throw "$filterName cannot be combined with Regex. Put the complete expression in Query or disable Regex."
+        }
+    }
+    $searchTerms = @()
+}
+else {
+    $termParameters = @{ Query = $Query }
+    foreach ($filterName in $structuredFilterNames) {
+        if ($PSBoundParameters.ContainsKey($filterName)) {
+            $termParameters[$filterName] = $PSBoundParameters[$filterName]
+        }
+    }
+    $searchTerms = @(New-EverythingSearchTerms @termParameters)
+}
+
+if (-not $Regex -and $searchTerms.Count -eq 0 -and [string]::IsNullOrWhiteSpace($Path)) {
+    throw "Provide Query, Path, or at least one structured filter."
+}
+
 Assert-EverythingWindows
 $esPath = Get-BundledEverythingEsPath
 $null = Assert-BundledEverythingEsTrusted -EsPath $esPath
-$connection = Invoke-EverythingEs -EsPath $esPath -Arguments @("-get-everything-version")
-if ($connection.ExitCode -ne 0) {
-    throw "Everything IPC is unavailable (ES exit $($connection.ExitCode)). Run Get-EverythingStatus.ps1 and start or install Everything."
+$readiness = Ensure-EverythingIpcReady `
+    -EsPath $esPath `
+    -Instance $Instance `
+    -AutoStart `
+    -StartupTimeoutMilliseconds $TimeoutMilliseconds
+
+if (-not $readiness.ready) {
+    New-EverythingErrorPayload -Diagnosis $readiness.diagnosis -Instance $Instance |
+        ConvertTo-Json -Depth 6
+    exit $readiness.exit_code
 }
 
 $arguments = [System.Collections.Generic.List[string]]::new()
+foreach ($argument in @(Get-EverythingInstanceArguments -Instance $Instance)) {
+    $arguments.Add($argument)
+}
 $arguments.Add("-json")
 $arguments.Add("-date-format")
 $arguments.Add("1")
+$arguments.Add("-timeout")
+$arguments.Add([string]$TimeoutMilliseconds)
 $arguments.Add("-n")
 $arguments.Add([string]($MaxResults + 1))
 $arguments.Add("-sort")
 $arguments.Add($Sort)
 $arguments.Add("-name")
 $arguments.Add("-path-column")
-$arguments.Add("-size")
-$arguments.Add("-date-modified")
-$arguments.Add("-extension")
 $arguments.Add("-attributes")
 
-if ($Path) {
+if ($OutputMode -in @("Metadata", "Full")) {
+    $arguments.Add("-extension")
+    $arguments.Add("-size")
+    $arguments.Add("-size-format")
+    $arguments.Add("1")
+    $arguments.Add("-no-digit-grouping")
+    $arguments.Add("-date-modified")
+}
+if ($OutputMode -eq "Full") {
+    $arguments.Add("-date-created")
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Path)) {
     $arguments.Add("-path")
     $arguments.Add($Path)
 }
-if ($FilesOnly) {
+if ($effectiveItemType -eq "File") {
     $arguments.Add("/a-d")
 }
-if ($FoldersOnly) {
+elseif ($effectiveItemType -eq "Folder") {
     $arguments.Add("/ad")
 }
 if ($MatchPath) {
@@ -85,42 +161,63 @@ if ($MatchCase) {
 if ($MatchWholeWord) {
     $arguments.Add("-whole-word")
 }
-if ($Instance) {
-    $arguments.Add("-instance")
-    $arguments.Add($Instance)
-}
 
 if ($Regex) {
-    if ($Query.TrimStart() -match "^[/-]") {
-        throw "The regular expression looks like an ES command-line option."
-    }
     $arguments.Add("-regex")
     $arguments.Add($Query)
 }
 else {
-    $queryTokens = @(Split-EverythingQuery -Query $Query)
-    if ($queryTokens.Count -eq 0) {
-        throw "The Everything query is empty."
-    }
-
-    foreach ($token in $queryTokens) {
-        if ($token.TrimStart('"') -match "^[/-]") {
-            throw "Query term '$token' looks like an ES command-line option. Express exclusions with ! or use a structured script parameter."
-        }
-        $arguments.Add($token)
+    foreach ($term in $searchTerms) {
+        $arguments.Add($term)
     }
 }
 
 $search = Invoke-EverythingEs -EsPath $esPath -Arguments $arguments.ToArray()
-if ($search.ExitCode -ne 0) {
-    throw "Everything search failed (ES exit $($search.ExitCode)): $($search.Text)"
+$searchRetryUsed = $false
+if ($search.ExitCode -eq 8) {
+    Start-Sleep -Milliseconds 750
+    $searchRetryUsed = $true
+    $search = Invoke-EverythingEs -EsPath $esPath -Arguments $arguments.ToArray()
 }
 
-$rawResults = if ([string]::IsNullOrWhiteSpace($search.Text)) {
-    @()
+if ($search.ExitCode -ne 0) {
+    $diagnosis = if ($search.ExitCode -eq 8) {
+        Get-EverythingIpcDiagnosis -ExitCode $search.ExitCode -Instance $Instance
+    }
+    else {
+        [pscustomobject]@{
+            code = "search_failed"
+            message = "Everything search failed (ES exit $($search.ExitCode)): $($search.Text)"
+            recoverable = $false
+            user_action_required = $true
+            exit_code = $search.ExitCode
+        }
+    }
+
+    New-EverythingErrorPayload -Diagnosis $diagnosis -Instance $Instance |
+        ConvertTo-Json -Depth 6
+    exit $search.ExitCode
 }
-else {
-    @($search.Text | ConvertFrom-Json)
+
+try {
+    $rawResults = if ([string]::IsNullOrWhiteSpace($search.Text)) {
+        @()
+    }
+    else {
+        @($search.Text | ConvertFrom-Json)
+    }
+}
+catch {
+    $diagnosis = [pscustomobject]@{
+        code = "invalid_es_json"
+        message = "Everything returned invalid JSON: $($_.Exception.Message)"
+        recoverable = $false
+        user_action_required = $true
+        exit_code = 1
+    }
+    New-EverythingErrorPayload -Diagnosis $diagnosis -Instance $Instance |
+        ConvertTo-Json -Depth 6
+    exit 1
 }
 
 $results = @(
@@ -128,7 +225,8 @@ $results = @(
         $nameProperty = $item.PSObject.Properties["name"]
         $pathProperty = $item.PSObject.Properties["path"]
         $sizeProperty = $item.PSObject.Properties["size"]
-        $dateProperty = $item.PSObject.Properties["date_modified"]
+        $dateCreatedProperty = $item.PSObject.Properties["date_created"]
+        $dateModifiedProperty = $item.PSObject.Properties["date_modified"]
         $extensionProperty = $item.PSObject.Properties["extension"]
         $attributesProperty = $item.PSObject.Properties["attributes"]
 
@@ -142,16 +240,24 @@ $results = @(
             $name
         }
 
-        [pscustomobject]@{
-            name = $name
-            path = $parentPath
+        $record = [ordered]@{
             full_path = $fullPath
-            extension = if ($extensionProperty) { $extensionProperty.Value } else { $null }
-            size_bytes = if ($sizeProperty) { [int64]$sizeProperty.Value } else { $null }
-            date_modified = if ($dateProperty) { $dateProperty.Value } else { $null }
             is_folder = ($attributes -band 16) -ne 0
-            attributes = $attributes
         }
+
+        if ($OutputMode -in @("Metadata", "Full")) {
+            $record["name"] = $name
+            $record["extension"] = if ($extensionProperty) { $extensionProperty.Value } else { $null }
+            $record["size_bytes"] = if ($sizeProperty) { [int64]$sizeProperty.Value } else { $null }
+            $record["date_modified"] = if ($dateModifiedProperty) { $dateModifiedProperty.Value } else { $null }
+        }
+        if ($OutputMode -eq "Full") {
+            $record["path"] = $parentPath
+            $record["date_created"] = if ($dateCreatedProperty) { $dateCreatedProperty.Value } else { $null }
+            $record["attributes"] = $attributes
+        }
+
+        [pscustomobject]$record
     }
 )
 
@@ -160,14 +266,15 @@ if ($limitReached) {
     $results = @($results | Select-Object -First $MaxResults)
 }
 
-[pscustomobject]@{
-    query = $Query
-    path = $Path
-    sort = $Sort
-    max_results = $MaxResults
+$response = [ordered]@{
+    ok = $true
     returned = $results.Count
     limit_reached = $limitReached
-    everything_version = $connection.Text
-    es_version = (Invoke-EverythingEs -EsPath $esPath -Arguments @("-version")).Text
     results = $results
-} | ConvertTo-Json -Depth 6
+}
+
+if ($readiness.ipc_retry_used -or $readiness.client_started -or $searchRetryUsed) {
+    $response["recovered"] = $true
+}
+
+[pscustomobject]$response | ConvertTo-Json -Depth 6

@@ -2,6 +2,7 @@
 param(
     [switch]$InstallIfMissing,
     [switch]$StartIfStopped,
+    [string]$Instance,
 
     [ValidateRange(1, 60)]
     [int]$TimeoutSeconds = 20
@@ -13,7 +14,11 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Everything.Common.ps1")
 
 function Get-CurrentEverythingStatus {
-    $json = & (Join-Path $PSScriptRoot "Get-EverythingStatus.ps1")
+    $parameters = @{}
+    if (-not [string]::IsNullOrWhiteSpace($Instance)) {
+        $parameters["Instance"] = $Instance
+    }
+    $json = & (Join-Path $PSScriptRoot "Get-EverythingStatus.ps1") @parameters
     return ($json | ConvertFrom-Json)
 }
 
@@ -21,13 +26,13 @@ Assert-EverythingWindows
 $status = Get-CurrentEverythingStatus
 
 if ($status.ready) {
-    $status | ConvertTo-Json -Depth 6
+    $status | ConvertTo-Json -Depth 7
     return
 }
 
 if (-not $status.everything.installed) {
     if (-not $InstallIfMissing) {
-        $status | ConvertTo-Json -Depth 6
+        $status | ConvertTo-Json -Depth 7
         return
     }
 
@@ -37,7 +42,7 @@ if (-not $status.everything.installed) {
     }
 
     if (-not $PSCmdlet.ShouldProcess("voidtools Everything", "Install with WinGet")) {
-        $status | ConvertTo-Json -Depth 6
+        $status | ConvertTo-Json -Depth 7
         return
     }
 
@@ -60,19 +65,28 @@ if (-not $status.everything.installed) {
     $status = Get-CurrentEverythingStatus
 }
 
-if (-not $status.everything.running -and $StartIfStopped) {
+if (-not $status.ready -and $StartIfStopped) {
     $candidates = @(Get-EverythingExecutableCandidates)
     if ($candidates.Count -eq 0) {
         throw "Everything appears installed, but Everything.exe could not be located."
     }
 
-    $everythingPath = $candidates[0]
-    if (-not $PSCmdlet.ShouldProcess($everythingPath, "Start Everything in the background")) {
-        $status | ConvertTo-Json -Depth 6
+    $target = if ([string]::IsNullOrWhiteSpace($Instance)) {
+        $candidates[0]
+    }
+    else {
+        "$($candidates[0]) (instance: $Instance)"
+    }
+
+    if (-not $PSCmdlet.ShouldProcess($target, "Start Everything in the background")) {
+        $status | ConvertTo-Json -Depth 7
         return
     }
 
-    Start-Process -FilePath $everythingPath -ArgumentList "-startup"
+    $startResult = Start-EverythingClient -Instance $Instance
+    if (-not $startResult.started) {
+        throw "Everything could not be started: $($startResult.error)"
+    }
 }
 
 if ($StartIfStopped -or $InstallIfMissing) {
@@ -83,7 +97,7 @@ if ($StartIfStopped -or $InstallIfMissing) {
     } while (-not $status.ready -and [DateTime]::UtcNow -lt $deadline)
 }
 
-$status | ConvertTo-Json -Depth 6
+$status | ConvertTo-Json -Depth 7
 if (-not $status.ready -and ($StartIfStopped -or $InstallIfMissing)) {
     exit 8
 }
