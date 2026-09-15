@@ -20,6 +20,11 @@ Start a new Codex thread after installation. You can invoke
 - “Find `.cs` and `.shader` files modified today under `C:\Projects`.”
 - “Locate the newest matching build artifact, but return only a small candidate set.”
 
+Codex may install marketplace plugins in a host-managed cache. Integrations
+should use the exact skill location supplied by the catalog and resolve bundled
+scripts relative to `SKILL.md`; they should not assume the skill is directly
+under `$CODEX_HOME\skills`.
+
 ## Design goals
 
 - **One search entry point:** `Search-Everything.ps1` checks IPC readiness,

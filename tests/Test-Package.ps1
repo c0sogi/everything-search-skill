@@ -67,13 +67,14 @@ Assert-Condition ($marketplace.name -eq "everything-search-skill") "Unexpected m
 Assert-Condition ($marketplace.plugins.Count -eq 1) "Marketplace must contain exactly one plugin."
 Assert-Condition ($marketplace.plugins[0].name -eq "everything-search") "Marketplace plugin name does not match."
 Assert-Condition ($plugin.name -eq "everything-search") "Unexpected plugin name."
-Assert-Condition ($plugin.version -eq "0.2.0") "Unexpected plugin version."
+Assert-Condition ($plugin.version -eq "0.2.1") "Unexpected plugin version."
 Assert-Condition ($assetManifest.version -eq "1.1.0.37") "Unexpected bundled ES version."
 
 $skillText = Get-Content -LiteralPath (Join-Path $skillRoot "SKILL.md") -Raw
 Assert-Condition ($skillText -match "(?m)^name:\s*everything-search\s*$") "SKILL.md name is missing or incorrect."
 Assert-Condition ($skillText -match "(?m)^description:\s*\S") "SKILL.md description is missing."
 Assert-Condition ($skillText -match "MaxResults.*20") "SKILL.md does not describe the bounded default result limit."
+Assert-Condition ($skillText -match 'Do not rebuild\s+its absolute path from `CODEX_HOME`') "SKILL.md does not preserve the catalog-provided installation path."
 
 $searchText = Get-Content -LiteralPath (Join-Path $skillRoot "scripts\Search-Everything.ps1") -Raw
 Assert-Condition ($searchText -match '\[int\]\$MaxResults\s*=\s*20') "Search default MaxResults is not 20."

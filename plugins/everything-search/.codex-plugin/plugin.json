@@ -1,6 +1,6 @@
 {
   "name": "everything-search",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Search local Windows files with bounded results, structured filters, and resilient Everything IPC recovery.",
   "author": {
     "name": "c0sogi",

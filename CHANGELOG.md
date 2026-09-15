@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Clarify that marketplace installations may use host-managed cache paths and
+  that callers must resolve bundled resources from the catalog-provided
+  `SKILL.md` location instead of reconstructing a `$CODEX_HOME\skills` path.
+
 ## 0.2.0
 
 - Make `Search-Everything.ps1` the single normal search entry point.

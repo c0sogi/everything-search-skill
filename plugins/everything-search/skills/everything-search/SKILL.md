@@ -8,8 +8,10 @@ description: Search Windows files and folders instantly with the bundled voidtoo
 Use the bundled, signed `es.exe` for indexed file-system metadata searches. Do
 not require a separately installed ES CLI or an MCP server.
 
-Resolve every relative path below against the directory containing this
-`SKILL.md`.
+Use the exact `SKILL.md` location supplied by the skill catalog. Do not rebuild
+its absolute path from `CODEX_HOME`, a conventional `skills` directory, or a
+plugin name: marketplace installs may live under a host-managed cache. Resolve
+every relative path below against the directory containing that `SKILL.md`.
 
 ## Core workflow
 
