@@ -1,5 +1,11 @@
 # Everything Search Skill
 
+> [!IMPORTANT]
+> This repository is archived and no longer updated. The `everything-search`
+> plugin now lives in
+> [c0sogi/plugins](https://github.com/c0sogi/plugins/tree/main/plugins/everything-search).
+> See that README for current installation instructions.
+
 An MCP-free Codex Agent Skill for near-instant, bounded file and folder search
 on Windows. It bundles the official, signed voidtools `es.exe` client for x64
 and ARM64 and exposes a safe PowerShell wrapper designed for agent workflows.
